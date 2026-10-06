@@ -29,7 +29,6 @@ class UsageRecord(BaseModel):
     output_tokens: int
     cost_usd: float
     latency_ms: float
-    recent: list[UsageRecord]
 
 
 class UsageSummary(BaseModel):
