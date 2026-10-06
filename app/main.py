@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app import config, database
+from app import cache, config, database
 from app.model.schemas import HealthResponse
 from app.routes.chat import router as chat_router
 from app.routes.usage import router as usage_router
@@ -16,6 +16,7 @@ logging.basicConfig(level=logging.INFO)
 async def lifespan(app: FastAPI):
     await database.init_db()
     yield
+    await cache.close_cache()
     await database.close_db()
 
 

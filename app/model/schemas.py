@@ -18,6 +18,8 @@ class ChatResponse(BaseModel):
     model: str
     input_tokens: int
     output_tokens: int
+    cost_usd: float = 0.0
+    cached: bool = False
 
 
 class UsageRecord(BaseModel):
@@ -27,6 +29,7 @@ class UsageRecord(BaseModel):
     output_tokens: int
     cost_usd: float
     latency_ms: float
+    recent: list[UsageRecord]
 
 
 class UsageSummary(BaseModel):
