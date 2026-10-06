@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date,datetime
 
 from pydantic import BaseModel, Field
 
@@ -38,3 +38,19 @@ class UsageSummary(BaseModel):
     total_cost_usd: float
     average_latency_ms: float
     recent: list[UsageRecord]
+
+
+class DailyUsage(BaseModel):
+    day: date
+    requests: int
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+
+
+class ModelUsage(BaseModel):
+    model: str
+    requests: int
+    cost_usd: float
+    avg_latency_ms: float
+    p95_latency_ms: float

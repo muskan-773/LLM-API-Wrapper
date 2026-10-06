@@ -1,0 +1,19 @@
+from pathlib import Path
+
+from fastapi import APIRouter
+from fastapi.responses import FileResponse
+
+
+router = APIRouter(tags=["dashboard"])
+
+
+DASHBOARD_FILE = (
+    Path(__file__).resolve().parent.parent
+    / "static"
+    / "dashboard.html"
+)
+
+
+@router.get("/dashboard", include_in_schema=False)
+async def dashboard():
+    return FileResponse(DASHBOARD_FILE)

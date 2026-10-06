@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LLM Cost Dashboard</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 0;
+      padding: 24px;
+      background: #0f1115;
+      color: #e6e6e6;
+    }
+
+    h1 {
+      margin-top: 0;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(
+        auto-fit,
+        minmax(180px, 1fr)
+      );
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .card,
+    .panel {
+      background: #1a1d24;
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .card .label {
+      font-size: 12px;
+      color: #9aa0aa;
+    }
+
+    .card .value {
+      font-size: 24px;
+      margin-top: 4px;
+    }
+
+    .panel {
+      margin-bottom: 24px;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      text-align: left;
+      padding: 6px 8px;
+      border-bottom: 1px solid #2a2e37;
+    }
+
+    th {
+      color: #9aa0aa;
+      font-weight: 500;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>LLM Cost Dashboard</h1>
+
+  <div class="cards">
+
+    <div class="card">
+      <div class="label">Requests</div>
+      <div class="value" id="requests">-</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Total cost</div>
+      <div class="value" id="cost">-</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Avg latency</div>
+      <div class="value" id="latency">-</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Tokens (in / out)</div>
+      <div class="value" id="tokens">-</div>
+    </div>
+
+  </div>
+
+
+  <div class="panel">
+    <h3>Cost per day (USD, last 14 days)</h3>
+    <canvas id="costChart" height="90"></canvas>
+  </div>
+
+
+  <div class="panel">
+    <h3>Requests per day</h3>
+    <canvas id="reqChart" height="90"></canvas>
+  </div>
+
+
+  <div class="panel">
+
+    <h3>By model</h3>
+
+    <table id="modelTable">
+
+      <thead>
+        <tr>
+          <th>Model</th>
+          <th>Requests</th>
+          <th>Cost</th>
+          <th>Avg latency</th>
+          <th>p95 latency</th>
+        </tr>
+      </thead>
+
+      <tbody></tbody>
+
+    </table>
+
+  </div>
+
+
+  <div class="panel">
+
+    <h3>Recent requests</h3>
+
+    <table id="recentTable">
+
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Model</th>
+          <th>In</th>
+          <th>Out</th>
+          <th>Cost</th>
+          <th>Latency</th>
+        </tr>
+      </thead>
+
+      <tbody></tbody>
+
+    </table>
+
+  </div>
+
+
+  <script>
+
+    const usd = (n) =>
+      "$" + n.toFixed(6);
+
+    const ms = (n) =>
+      Math.round(n) + " ms";
+
+
+    function fillTable(id, rows) {
+
+      const tbody =
+        document.querySelector("#" + id + " tbody");
+
+      tbody.replaceChildren();
+
+      for (const cells of rows) {
+
+        const tr =
+          document.createElement("tr");
+
+        for (const value of cells) {
+
+          const td =
+            document.createElement("td");
+
+          td.textContent = value;
+
+          tr.appendChild(td);
+        }
+
+        tbody.appendChild(tr);
+      }
+    }
+
+
+    function drawChart(
+      id,
+      type,
+      labels,
+      data,
+      label
+    ) {
+
+      new Chart(
+        document.getElementById(id),
+        {
+          type,
+
+          data: {
+            labels,
+
+            datasets: [
+              {
+                label,
+                data,
+                backgroundColor: "#4f8cff",
+                borderColor: "#4f8cff"
+              }
+            ]
+          },
+
+          options: {
+            plugins: {
+              legend: {
+                display: false
+              }
+            }
+          }
+        }
+      );
+    }
+
+
+    async function load() {
+
+      const [
+        summary,
+        daily,
+        models
+      ] = await Promise.all([
+
+        fetch("/usage")
+          .then((r) => r.json()),
+
+        fetch("/usage/daily?days=14")
+          .then((r) => r.json()),
+
+        fetch("/usage/by-model")
+          .then((r) => r.json())
+
+      ]);
+
+
+      document.getElementById("requests")
+        .textContent =
+        summary.total_requests;
+
+
+      document.getElementById("cost")
+        .textContent =
+        usd(summary.total_cost_usd);
+
+
+      document.getElementById("latency")
+        .textContent =
+        ms(summary.average_latency_ms);
+
+
+      document.getElementById("tokens")
+        .textContent =
+        summary.total_input_tokens
+        + " / "
+        + summary.total_output_tokens;
+
+
+      const days =
+        daily.map((d) => d.day);
+
+
+      drawChart(
+        "costChart",
+        "bar",
+        days,
+        daily.map((d) => d.cost_usd),
+        "Cost (USD)"
+      );
+
+
+      drawChart(
+        "reqChart",
+        "line",
+        days,
+        daily.map((d) => d.requests),
+        "Requests"
+      );
+
+
+      fillTable(
+        "modelTable",
+
+        models.map((m) => [
+          m.model,
+          m.requests,
+          usd(m.cost_usd),
+          ms(m.avg_latency_ms),
+          ms(m.p95_latency_ms)
+        ])
+      );
+
+
+      fillTable(
+        "recentTable",
+
+        summary.recent.map((r) => [
+
+          new Date(
+            r.timestamp
+          ).toLocaleString(),
+
+          r.model,
+
+          r.input_tokens,
+
+          r.output_tokens,
+
+          usd(r.cost_usd),
+
+          ms(r.latency_ms)
+
+        ])
+      );
+
+    }
+
+
+    load().catch(
+      (err) =>
+        console.error(
+          "Dashboard failed to load",
+          err
+        )
+    );
+
+  </script>
+
+</body>
+</html>

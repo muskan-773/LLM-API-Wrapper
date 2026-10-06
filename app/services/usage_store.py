@@ -1,5 +1,10 @@
 from app.database import get_pool
-from app.model.schemas import UsageRecord, UsageSummary
+from app.model.schemas import (
+    DailyUsage,
+    ModelUsage,
+    UsageRecord,
+    UsageSummary,
+)
 
 async def add_record(record: UsageRecord) -> None:
     await get_pool().execute(
@@ -67,3 +72,44 @@ async def get_summary(recent_limit: int = 10) -> UsageSummary:
         average_latency_ms=totals["average_latency_ms"],
         recent=recent,
     )
+
+async def get_daily(days: int = 7) -> list[DailyUsage]:
+    rows = await get_pool().fetch(
+        """
+        SELECT
+            (created_at AT TIME ZONE 'UTC')::date AS day,
+            COUNT(*) AS requests,
+            COALESCE(SUM(input_tokens), 0) AS input_tokens,
+            COALESCE(SUM(output_tokens), 0) AS output_tokens,
+            COALESCE(SUM(cost_usd), 0) AS cost_usd
+        FROM usage_records
+        WHERE created_at >= now() - make_interval(days => $1)
+        GROUP BY day
+        ORDER BY day
+        """,
+        days,
+    )
+
+    return [DailyUsage(**dict(r)) for r in rows]
+
+
+async def get_by_model() -> list[ModelUsage]:
+    rows = await get_pool().fetch(
+        """
+        SELECT
+            model,
+            COUNT(*) AS requests,
+            COALESCE(SUM(cost_usd), 0) AS cost_usd,
+            COALESCE(AVG(latency_ms), 0) AS avg_latency_ms,
+            COALESCE(
+                percentile_cont(0.95)
+                WITHIN GROUP (ORDER BY latency_ms),
+                0
+            ) AS p95_latency_ms
+        FROM usage_records
+        GROUP BY model
+        ORDER BY cost_usd DESC
+        """
+    )
+
+    return [ModelUsage(**dict(r)) for r in rows]
