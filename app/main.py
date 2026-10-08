@@ -15,8 +15,13 @@ logging.basicConfig(level=logging.INFO)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Validate configuration before starting services.
+    config.validate()
+
     await database.init_db()
+
     yield
+
     await cache.close_cache()
     await database.close_db()
 
@@ -40,4 +45,3 @@ async def health_check():
         app_name=config.APP_NAME,
         environment=config.APP_ENV,
     )
-
