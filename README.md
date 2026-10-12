@@ -1,107 +1,111 @@
 # LLM API Wrapper Service
 
-A FastAPI backend that demonstrates how to build an LLM API wrapper
-with production-style features such as retries, caching, streaming,
-usage tracking, database persistence, and error handling.
+A FastAPI backend demonstrating backend engineering patterns around LLM
+APIs: retries, Redis caching, Server-Sent Events (SSE) streaming,
+PostgreSQL usage persistence, and error handling.
 
-The current implementation uses a **mock LLM provider**, so the project
-can run locally without requiring a paid LLM API.
+> **Current provider:** This project uses a mock LLM implementation. It
+> does not make real or paid LLM API calls. Token counts, latency, and
+> cost values are illustrative, not provider-billed metrics.
 
----
+## Live Demo
+
+-   **Live service:** https://llm-api-wrapper.onrender.com
+-   **Health check:** https://llm-api-wrapper.onrender.com/health
+-   **Interactive API docs:** https://llm-api-wrapper.onrender.com/docs
+-   **Usage dashboard:** https://llm-api-wrapper.onrender.com/dashboard
+-   **GitHub repository:** https://github.com/muskan-773/LLM-API-Wrapper
+
+The root URL (`/`) may return `404 Not Found` because a homepage route
+is not currently defined. Use `/health` to check service health and
+`/docs` to explore the API. Hosted services may sleep or be temporarily
+unavailable depending on the hosting plan and configured services.
 
 ## Features
 
-- `POST /chat` — generate a JSON response
-- `POST /chat/stream` — Server-Sent Events (SSE) streaming
-- Retry logic with exponential backoff and jitter
-- Redis caching with TTL
-- Cache-aside pattern
-- Graceful cache failure handling
-- PostgreSQL usage tracking
-- Input and output token tracking
-- Request latency tracking
-- Cost tracking
-- Daily usage statistics
-- Per-model usage statistics
-- Usage dashboard
-- Configuration validation
-- Secure error handling
-- Automated pytest test suite
-
----
+-   `POST /chat` --- JSON chat response
+-   `POST /chat/stream` --- Server-Sent Events (SSE) streaming
+-   Retry logic with exponential backoff and jitter for retryable errors
+-   Redis response caching with configurable TTL
+-   Cache-aside pattern and graceful handling of cache failures
+-   PostgreSQL usage persistence
+-   Input/output token-count fields, latency, and cost fields
+-   Daily and per-model usage summaries
+-   Usage dashboard
+-   Configuration validation
+-   Client-safe error responses
+-   Automated pytest test suite
 
 ## Architecture
 
-```text
+``` text
 Client
   |
   v
-FastAPI
+FastAPI application
   |
-  +-------------------------+
-  |                         |
-  v                         v
-Chat Routes             Dashboard Routes
-  |
-  v
-LLM Service
-  |
-  +------------------+
-  |                  |
-  v                  v
-Mock LLM          Redis Cache
+  +-----------------------------+
+  |                             |
+  v                             v
+Chat routes                Usage/dashboard routes
   |
   v
-Usage Store
+LLM service
   |
-  v
-PostgreSQL
+  +-----------------------------+
+  |                             |
+  v                             v
+Redis cache                 Mock LLM
+  |                             |
+  +--------------+--------------+
+                 |
+                 v
+            Usage store
+                 |
+                 v
+             PostgreSQL
 ```
 
-The main responsibilities are separated into routes, services,
-caching, database access, and data schemas.
+The code separates HTTP routes, service logic, caching, database access,
+and request/response schemas.
 
----
+### Request flow
+
+1.  A client sends a request to `POST /chat` or `POST /chat/stream`.
+2.  The service checks Redis for a cached response.
+3.  On a cache miss, the mock provider generates a response. The
+    non-streaming path uses the retry wrapper.
+4.  The response is cached for the configured TTL.
+5.  Successful non-cached requests attempt to save usage information to
+    PostgreSQL.
+6.  The API returns JSON or SSE events.
 
 ## Project Structure
 
-```text
+``` text
 llm-api-wrapper/
-│
 ├── app/
-│   ├── __init__.py
 │   ├── main.py
 │   ├── config.py
 │   ├── database.py
 │   ├── cache.py
-│   │
 │   ├── model/
-│   │   ├── __init__.py
 │   │   └── schemas.py
-│   │
 │   ├── routes/
-│   │   ├── __init__.py
 │   │   ├── chat.py
 │   │   ├── usage.py
 │   │   └── dashboard.py
-│   │
 │   ├── services/
-│   │   ├── __init__.py
 │   │   ├── llm_service.py
 │   │   ├── retry.py
 │   │   └── usage_store.py
-│   │
 │   └── static/
 │       └── dashboard.html
-│
 ├── tests/
-│   ├── __init__.py
 │   ├── conftest.py
 │   ├── helpers.py
 │   ├── test_chat.py
 │   └── test_retry.py
-│
-├── .env
 ├── .gitignore
 ├── requirements.txt
 ├── requirements-dev.txt
@@ -109,177 +113,124 @@ llm-api-wrapper/
 └── README.md
 ```
 
----
+The real `.env` file is intentionally excluded from the repository.
+Create your own local `.env` file as described below.
 
 ## Technology Stack
 
-### Backend
-
-- Python
-- FastAPI
-- Uvicorn
-
-### Database
-
-- PostgreSQL
-- asyncpg
-
-### Cache
-
-- Redis
-- redis-py asyncio API
-
-### Testing
-
-- pytest
-- pytest-anyio
-- httpx
-
-### Configuration
-
-- python-dotenv
-
----
+-   **Language:** Python
+-   **API framework:** FastAPI
+-   **ASGI server:** Uvicorn
+-   **Database:** PostgreSQL with `asyncpg`
+-   **Cache:** Redis with `redis-py` asyncio API
+-   **Testing:** pytest, AnyIO, HTTPX
+-   **Configuration:** `python-dotenv`
 
 ## Requirements
 
-Before running the project, make sure you have:
+-   Python 3.10+
+-   PostgreSQL
+-   Redis
+-   `pip`
+-   A Python virtual environment
 
-- Python 3.10+
-- PostgreSQL
-- Redis
-- pip
-- Virtual environment
+## Local Setup
 
----
-
-## Setup
-
-Create a virtual environment:
-
-```bash
-python -m venv venv
+``` bash
+git clone https://github.com/muskan-773/LLM-API-Wrapper.git
+cd LLM-API-Wrapper
+python3 -m venv venv
 ```
 
-Activate it:
+Activate the environment:
 
-### macOS / Linux
+**macOS / Linux**
 
-```bash
+``` bash
 source venv/bin/activate
 ```
 
-### Windows
+**Windows**
 
-```bash
-venv\Scripts\activate
+``` powershell
+venv\\Scripts\\activate
 ```
 
-Install the application dependencies:
+Install dependencies:
 
-```bash
+``` bash
 pip install -r requirements.txt
-```
-
-For development and testing:
-
-```bash
 pip install -r requirements-dev.txt
 ```
 
----
-
 ## Environment Configuration
 
-Create a `.env` file in the project root:
+Create a `.env` file in the project root with your own local connection
+settings:
 
-```env
-DATABASE_URL=postgresql://postgres:password@localhost:5432/llm_wrapper
+``` env
+DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/llm_wrapper
 REDIS_URL=redis://localhost:6379/0
 CACHE_TTL_SECONDS=3600
 ```
 
-The application also supports additional configuration values through
-environment variables. Defaults are defined in:
-
-```text
-app/config.py
-```
-
-The current implementation uses a mock LLM, so an Anthropic API key
-is **not required**.
-
----
+Replace `YOUR_PASSWORD` with your local PostgreSQL password. Never
+commit real passwords, tokens, or API keys. Additional settings and
+defaults are defined in `app/config.py`. The mock implementation does
+**not** require an Anthropic or OpenAI API key.
 
 ## Database
 
-The application uses PostgreSQL to persist usage information.
+PostgreSQL persists usage records. The example local database name is
+`llm_wrapper`. At startup, the service creates the `usage_records` table
+if it does not already exist. A database migration tool is not currently
+used.
 
-The database name used in the example configuration is:
+## Redis Caching
 
-```text
-llm_wrapper
-```
+Redis caches responses to avoid repeating the same mock generation for
+identical requests.
 
-The application automatically creates the required usage table during
-startup.
+-   Cache TTL is controlled by `CACHE_TTL_SECONDS` (default: `3600`
+    seconds).
+-   The cache key uses the configured model, maximum-token setting, and
+    normalized message.
+-   Cache hits return `cached: true` and `cost_usd: 0.0`.
+-   Cache hits do not create another usage record.
+-   If a cache read or write fails, the service logs the issue and
+    continues without relying on the cache.
 
----
+## Running Locally
 
-## Redis
-
-Redis is used for response caching.
-
-Default Redis configuration:
-
-```text
-redis://localhost:6379/0
-```
-
-The cache TTL is controlled by:
-
-```env
-CACHE_TTL_SECONDS=3600
-```
-
-If Redis is unavailable, the application logs the cache failure and
-continues without caching.
-
----
-
-## Running the Application
-
-Start the FastAPI development server:
-
-```bash
+``` bash
 uvicorn app.main:app --reload
 ```
 
-The application will be available at:
-
-```text
-http://127.0.0.1:8000
-```
-
-Interactive API documentation:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
----
+-   API: http://127.0.0.1:8000
+-   Interactive docs: http://127.0.0.1:8000/docs
+-   Dashboard: http://127.0.0.1:8000/dashboard
 
 ## API Endpoints
 
+  Method   Endpoint          Purpose
+  -------- ----------------- ----------------------------------
+  `GET`    `/health`         Health check
+  `POST`   `/chat`           JSON chat response
+  `POST`   `/chat/stream`    SSE streaming response
+  `GET`    `/usage`          Usage summary and recent records
+  `GET`    `/usage/daily`    Usage aggregated by day
+  `GET`    `/usage/models`   Usage grouped by model
+  `GET`    `/dashboard`      Usage dashboard
+
 ### Health Check
 
-```http
+``` http
 GET /health
 ```
 
 Example response:
 
-```json
+``` json
 {
   "status": "ok",
   "app_name": "LLM API Wrapper Service",
@@ -287,17 +238,16 @@ Example response:
 }
 ```
 
----
-
 ### Chat
 
-```http
+``` http
 POST /chat
+Content-Type: application/json
 ```
 
 Request:
 
-```json
+``` json
 {
   "message": "Hello"
 }
@@ -305,7 +255,7 @@ Request:
 
 Example response:
 
-```json
+``` json
 {
   "reply": "Mock response: You said 'Hello'",
   "model": "mock-model",
@@ -316,417 +266,157 @@ Example response:
 }
 ```
 
----
-
 ### Streaming Chat
 
-```http
+``` http
 POST /chat/stream
+Content-Type: application/json
 ```
 
-This endpoint uses Server-Sent Events (SSE).
+The endpoint uses Server-Sent Events. It emits one or more `delta`
+events followed by a `done` event. A stream failure can produce an
+`error` event.
 
-The response is delivered in multiple `delta` events followed by a
-`done` event.
+Example event sequence:
 
-Example:
-
-```text
+``` text
 event: delta
 data: {"text": "Mock "}
 
 event: delta
 data: {"text": "response: "}
 
-event: delta
-data: {"text": "You "}
-
-event: delta
-data: {"text": "said "}
-
 event: done
 data: {"model": "mock-model", "input_tokens": 1, "output_tokens": 5, "cost_usd": 0.0, "cached": false}
 ```
 
----
-
 ### Usage Summary
 
-```http
-GET /usage
-```
-
-Returns overall usage information including:
-
-- Total requests
-- Input tokens
-- Output tokens
-- Total cost
-- Average latency
-- Recent usage records
-
----
+`GET /usage` returns total requests, input/output tokens, total cost,
+average latency, and recent records.
 
 ### Daily Usage
 
-```http
-GET /usage/daily
-```
-
-Returns usage aggregated by day.
-
-The response includes:
-
-- Date
-- Request count
-- Input tokens
-- Output tokens
-- Cost
-
----
+`GET /usage/daily` returns request counts, token counts, and cost
+aggregated by day.
 
 ### Usage by Model
 
-```http
-GET /usage/models
-```
-
-Returns usage grouped by model.
-
-The response includes:
-
-- Model
-- Request count
-- Cost
-- Average latency
-- P95 latency
-
----
+`GET /usage/models` returns per-model request count, total cost, average
+latency, and p95 latency.
 
 ### Dashboard
 
-Open:
-
-```text
-http://127.0.0.1:8000/dashboard
-```
-
-The dashboard provides a simple interface for viewing usage information.
-
----
-
-## Caching
-
-The application uses a cache-aside strategy.
-
-### Cache Miss
-
-```text
-Request
-   |
-   v
-Check Redis
-   |
-   +---- MISS
-          |
-          v
-       Mock LLM
-          |
-          v
-      Store result
-          |
-          v
-       PostgreSQL
-          |
-          v
-       Response
-```
-
-### Cache Hit
-
-```text
-Request
-   |
-   v
-Check Redis
-   |
-   +---- HIT
-          |
-          v
-    Return cached response
-```
-
-The cache key is based on the model, maximum token configuration, and
-message.
-
-Cached responses return:
-
-```json
-{
-  "cached": true,
-  "cost_usd": 0.0
-}
-```
-
-Cache hits do not create another usage record.
-
----
+Open `http://127.0.0.1:8000/dashboard` locally, or use the hosted
+dashboard link in the Live Demo section.
 
 ## Retry Strategy
 
-Temporary failures are handled using retry logic with exponential
-backoff and jitter.
+The retry implementation is in `app/services/retry.py`. It uses
+exponential backoff with jitter and retries selected temporary errors,
+including connection errors and configured retryable HTTP status codes
+such as `429`, `500`, `502`, `503`, `504`, and `529`.
 
-Retryable errors include:
-
-- Connection errors
-- HTTP 429
-- HTTP 500
-- HTTP 502
-- HTTP 503
-- HTTP 504
-- HTTP 529
-
-The retry implementation is located at:
-
-```text
-app/services/retry.py
-```
-
-The number of retries and base delay can be configured through
-environment variables.
-
----
+The maximum retry count and base delay are configurable through
+environment variables. The current provider is mocked; the retry module
+is structured to support retryable provider exceptions.
 
 ## Usage Tracking
 
-Successful non-cached requests record usage information in PostgreSQL.
-
-Each usage record contains:
-
-- Timestamp
-- Model
-- Input tokens
-- Output tokens
-- Cost
-- Latency
-
-This information is later used by:
-
-```text
-GET /usage
-GET /usage/daily
-GET /usage/models
-```
-
-and the dashboard.
-
----
+Successful non-cached requests attempt to save usage data to PostgreSQL.
+Each record contains a timestamp, model name, input/output token counts,
+cost field, and latency in milliseconds. Since the provider is mocked,
+cost values are `0.0`, and token counts are approximations rather than
+provider-reported usage.
 
 ## Error Handling
 
-The application separates internal errors from client-facing errors.
+Internal service errors are logged on the server. The chat endpoint
+returns a generic client-facing error rather than exposing internal
+implementation details.
 
-For example, an internal service error may be:
+Example:
 
-```text
-LLM service failed
-```
-
-The detailed error is logged by the server.
-
-The client instead receives:
-
-```json
+``` json
 {
   "detail": "LLM service temporarily unavailable"
 }
 ```
 
-This prevents internal implementation details from being exposed through
-the API.
-
----
-
 ## Configuration Validation
 
-The application validates important configuration values during startup.
-
-Examples include:
-
-- `MAX_TOKENS`
-- `MAX_RETRIES`
-- `RETRY_BASE_DELAY`
-- `REQUEST_TIMEOUT`
-- `CACHE_TTL_SECONDS`
-
-Invalid configuration causes startup validation to fail rather than
-allowing the application to run with unsafe or invalid settings.
-
----
+The application validates important settings during startup, including
+`MAX_TOKENS`, `MAX_RETRIES`, `RETRY_BASE_DELAY`, `REQUEST_TIMEOUT`, and
+`CACHE_TTL_SECONDS`. Invalid configuration values cause startup
+validation to fail.
 
 ## Testing
 
-The project uses pytest for automated testing.
+The test suite uses pytest and replaces Redis/PostgreSQL operations with
+in-memory fakes for route tests, so it does not require live Redis or
+PostgreSQL services.
 
-The tests use:
-
-- A mock LLM
-- In-memory cache fakes
-- In-memory usage storage fakes
-
-This means the test suite does not require Redis or PostgreSQL to be
-running.
-
-Run all tests:
-
-```bash
+``` bash
 python -m pytest -v
 ```
 
-Current test suite:
+The latest verified local test run completed with **14 passed**.
 
-```text
-14 passed
-```
-
-### Tests cover
-
-- Health endpoint
-- Request validation
-- Chat responses
-- Usage recording
-- Cache hits
-- Cache misses
-- Different-message cache behavior
-- Chat error handling
-- Secure error responses
-- SSE streaming
-- Streaming cache
-- Retry success
-- Retryable failures
-- Maximum retry behavior
-- Non-retryable failures
-
----
-
-## Development Workflow
-
-Run the test suite before making a commit:
-
-```bash
-python -m pytest -v
-```
-
-A successful run should show:
-
-```text
-14 passed
-```
-
-Start the application locally:
-
-```bash
-uvicorn app.main:app --reload
-```
-
-Open the API documentation:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
-Open the dashboard:
-
-```text
-http://127.0.0.1:8000/dashboard
-```
-
----
+Tests cover health checks, request validation, chat responses, usage
+recording, cache hits/misses, error handling, SSE streaming, retry
+success, retryable errors, maximum retry attempts, and non-retryable
+errors.
 
 ## Example Requests
 
 ### Chat
 
-```bash
-curl -X POST http://127.0.0.1:8000/chat \
-  -H "Content-Type: application/json" \
+``` bash
+curl -X POST http://127.0.0.1:8000/chat \\
+  -H "Content-Type: application/json" \\
   -d '{"message": "Explain REST in one sentence."}'
 ```
 
 ### Streaming
 
-```bash
-curl -N -X POST http://127.0.0.1:8000/chat/stream \
-  -H "Content-Type: application/json" \
+``` bash
+curl -N -X POST http://127.0.0.1:8000/chat/stream \\
+  -H "Content-Type: application/json" \\
   -d '{"message": "Write a haiku about caching."}'
 ```
 
----
-
 ## Known Limitations
 
-- No authentication or authorization
-- No rate limiting
-- Current LLM implementation is a mock provider
-- Cache hits are not recorded as usage records
-- Streaming currently uses mock token generation
-- Costs are currently `0.0` because no paid LLM provider is being used
-- No distributed tracing
-- No production monitoring system
-- PostgreSQL schema is created at startup
-- No database migration tool is currently used
-- No CI/CD pipeline yet
-
----
+-   The LLM provider is mocked; no real model inference occurs.
+-   Streaming emits simulated chunks from mock text.
+-   Cost values are `0.0` and do not represent provider billing.
+-   Token counts are illustrative, not provider-reported usage.
+-   No authentication or authorization.
+-   No rate limiting.
+-   Cache hits are not recorded as new usage records.
+-   PostgreSQL schema creation occurs at startup; no migration tool is
+    used.
+-   No distributed tracing or dedicated production monitoring.
+-   No CI/CD pipeline is configured.
 
 ## Future Improvements
 
-Possible future improvements include:
-
-- Real LLM provider integration
-- Multiple LLM provider support
-- Authentication and authorization
-- Rate limiting
-- Request IDs
-- Distributed tracing
-- Prometheus metrics
-- Production Docker setup
-- CI/CD pipeline
-- Database migrations
-- Better monitoring and alerting
-
----
+-   Integrate a real LLM provider behind the existing service
+    abstraction.
+-   Support multiple providers.
+-   Add authentication, authorization, and rate limiting.
+-   Add request IDs, metrics, and distributed tracing.
+-   Add database migrations.
+-   Add CI/CD automation.
+-   Improve monitoring and alerting.
+-   Add production containerization.
 
 ## Project Goal
 
-The goal of this project is to demonstrate practical backend engineering
-concepts involved in building an LLM-powered API.
+This project demonstrates backend engineering concepts used when
+building an LLM-facing API: API design, caching, retries, streaming,
+usage tracking, PostgreSQL persistence, testing, error handling, and
+configuration validation.
 
-The project focuses on:
-
-```text
-API Design
-    +
-Caching
-    +
-Retries
-    +
-Streaming
-    +
-Usage Tracking
-    +
-PostgreSQL
-    +
-Redis
-    +
-Testing
-    +
-Error Handling
-    +
-Configuration Validation
-```
-
-The project intentionally uses a mock LLM provider so that these backend
-engineering concepts can be developed and tested without requiring paid
-LLM API usage.
+The mock provider keeps development and testing independent of paid LLM
+API usage while these backend concepts are explored.
